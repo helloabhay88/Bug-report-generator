@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h2 class="text-2xl font-bold text-gray-800">Generate a New Bug Report</h2>
+            <p class="text-gray-600 text-sm mt-1">Paste your code snippet and provide details to auto-generate a structured report.</p>
+        </div>
+        
+        <form action="{{ url_for('index') }}" method="POST" class="p-6 space-y-6">
+            <!-- Language Selection -->
+            <div>
+                <label for="language" class="block text-sm font-medium text-gray-700">Programming Language</label>
+                <select id="language" name="language" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand focus:border-brand sm:text-sm rounded-md border" required>
+                    <option value="python">Python</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="html">HTML/CSS</option>
+                    <option value="java">Java</option>
+                    <option value="csharp">C#</option>
+                    <option value="cpp">C++</option>
+                    <option value="php">PHP</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <!-- Code Snippet -->
+            <div>
+                <label for="code" class="block text-sm font-medium text-gray-700">Code Snippet</label>
+                <p class="text-xs text-gray-500 mb-2">Paste the problematic code block here.</p>
+                <textarea id="code" name="code" rows="8" class="font-mono text-sm mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-brand focus:border-brand sm:text-sm p-3 bg-gray-50" placeholder="def hello_world():&#10;    print(1 / 0)  # Oops!" required></textarea>
+            </div>
+
+            <!-- Notes / Observed Error -->
+            <div>
+                <label for="notes" class="block text-sm font-medium text-gray-700">Observed Error / Notes (Optional)</label>
+                <p class="text-xs text-gray-500 mb-2">Describe what went wrong or paste the error traceback.</p>
+                <textarea id="notes" name="notes" rows="4" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-brand focus:border-brand sm:text-sm p-3" placeholder="ZeroDivisionError: division by zero"></textarea>
+            </div>
+
+            <!-- Submit -->
+            <div class="flex justify-end">
+                <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand">
+                    Generate Report
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Info Section -->
+    <div class="mt-8 bg-blue-50 p-6 rounded-lg border border-blue-100">
+        <h3 class="text-lg font-medium text-blue-800 mb-2">How it works</h3>
+        <ul class="list-disc pl-5 text-sm text-blue-700 space-y-1">
+            <li>Paste your broken code and error messages.</li>
+            <li>The system analyzes the input to create a standardized bug report.</li>
+            <li>Reports are saved directly to the database for tracking and review.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
