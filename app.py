@@ -17,7 +17,15 @@ db = SQLAlchemy(app)
 
 # Configure Gemini API
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-3.5-flash')
+
+CANDIDATE_MODELS = [
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-2.5-flash',
+    'gemini-pro-latest'
+]
 
 class BugReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -31,6 +39,7 @@ class BugReport(db.Model):
     status = db.Column(db.String(50), default='Open')
     language = db.Column(db.String(50), nullable=True)
     code_snippet = db.Column(db.Text, nullable=True)
+    fixed_code_snippet = db.Column(db.Text, nullable=True)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
@@ -39,14 +48,25 @@ class BugReport(db.Model):
 
 with app.app_context():
     db.create_all()
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        columns = [c['name'] for c in inspector.get_columns('bug_report')]
+        if 'fixed_code_snippet' not in columns:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE bug_report ADD COLUMN fixed_code_snippet TEXT;"))
+                conn.commit()
+    except Exception as e:
+        print(f"Migration note: {e}")
 
 def generate_report_from_code(code, language, notes):
     """
-    Uses Gemini API to auto-generate a structured report from raw code and error notes.
+    Uses Gemini API to auto-generate a structured report and fixed code from raw code and error notes.
+    Strictly uses Gemini API. Raises an exception if API calls fail.
     """
     prompt = f"""
 You are an expert QA Engineer and Senior Developer.
-A user has submitted the following {language} code snippet that is causing an issue:
+A user has submitted the following {language} code snippet:
 
 ```
 {code}
@@ -55,31 +75,50 @@ A user has submitted the following {language} code snippet that is causing an is
 Additional notes or error output provided by the user:
 "{notes}"
 
-Analyze the code and the notes. Generate a structured bug report.
+Analyze the code and the notes.
+1. If the code CONTAINS BUGS or syntax/logic errors:
+   - Provide a detailed report.
+   - Set "severity" and "priority" to "Low", "Medium", "High", or "Critical".
+   - Provide the corrected working code snippet in "fixed_code".
+
+2. If the code IS CLEAN, CORRECT, and HAS NO BUGS or errors:
+   - Clearly state that the code is clean and functional in "title" and "description".
+   - Set "steps_to_reproduce" to "N/A - Code is clean and functional."
+   - Set "actual_result" to "Code executed successfully with no errors."
+   - Set "severity" to "None"
+   - Set "priority" to "None"
+   - Set "fixed_code" to "" (empty string, as no fix is required).
+
 Return ONLY a valid JSON object with the following keys, and no markdown formatting or extra text outside the JSON:
-- "title": A concise summary of the issue.
-- "description": A clear breakdown of the problematic behavior or syntax error.
-- "steps_to_reproduce": Inferred execution path or trigger (as a numbered list string).
-- "expected_result": What the code was logically intended to accomplish.
-- "actual_result": The error trace or unexpected output.
-- "severity": "Low", "Medium", "High", or "Critical" based on the issue type.
-- "priority": "Low", "Medium", "High", or "Critical".
+- "title": A concise summary (e.g. "No Bugs Detected: Code is Functional" if clean).
+- "description": Clear explanation of the code or description of the bug.
+- "steps_to_reproduce": Execution path/trigger or "N/A - Code is clean".
+- "expected_result": What the code accomplishes.
+- "actual_result": The error output or "Code executed as expected".
+- "severity": "None", "Low", "Medium", "High", or "Critical".
+- "priority": "None", "Low", "Medium", "High", or "Critical".
+- "fixed_code": Corrected code snippet if buggy, or "" if clean.
 """
 
-    try:
-        response = model.generate_content(prompt)
-        text_response = response.text
-        # Strip out markdown block if Gemini wraps it in ```json ... ```
-        if text_response.strip().startswith('```json'):
-            text_response = text_response.strip()[7:-3].strip()
-        elif text_response.strip().startswith('```'):
-            text_response = text_response.strip()[3:-3].strip()
-            
-        report_data = json.loads(text_response)
-        return report_data
-    except Exception as e:
-        print(f"Error calling Gemini: {e}")
-        raise ValueError(f"Failed to generate report from Gemini API: {e}")
+    last_error = None
+    for model_name in CANDIDATE_MODELS:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            text_response = response.text.strip()
+            if text_response.startswith('```json'):
+                text_response = text_response[7:-3].strip()
+            elif text_response.startswith('```'):
+                text_response = text_response[3:-3].strip()
+                
+            report_data = json.loads(text_response)
+            return report_data
+        except Exception as e:
+            print(f"Model {model_name} failed: {e}")
+            last_error = e
+
+    # Strictly fail and raise exception if Gemini API fails
+    raise ValueError(f"Gemini API Error: {last_error}")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -102,6 +141,7 @@ def index():
                 priority=generated['priority'],
                 language=language,
                 code_snippet=code,
+                fixed_code_snippet=generated.get('fixed_code', ''),
                 notes=notes
             )
             

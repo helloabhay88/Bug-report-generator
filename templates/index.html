@@ -40,8 +40,12 @@
 
             <!-- Submit -->
             <div class="flex justify-end">
-                <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand">
-                    Generate Report
+                <button type="submit" id="submit-btn" class="inline-flex items-center justify-center py-2 px-5 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-all">
+                    <span id="btn-text">Generate Report</span>
+                    <svg id="btn-spinner" class="hidden animate-spin ml-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                 </button>
             </div>
         </form>
@@ -52,9 +56,22 @@
         <h3 class="text-lg font-medium text-blue-800 mb-2">How it works</h3>
         <ul class="list-disc pl-5 text-sm text-blue-700 space-y-1">
             <li>Paste your broken code and error messages.</li>
-            <li>The system analyzes the input to create a standardized bug report.</li>
+            <li>The system analyzes the input using Gemini AI to create a standardized bug report.</li>
             <li>Reports are saved directly to the database for tracking and review.</li>
         </ul>
     </div>
 </div>
+
+<script>
+    document.querySelector('form').addEventListener('submit', function() {
+        const btn = document.getElementById('submit-btn');
+        const text = document.getElementById('btn-text');
+        const spinner = document.getElementById('btn-spinner');
+        
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+        text.textContent = 'Generating Report with AI...';
+        spinner.classList.remove('hidden');
+    });
+</script>
 {% endblock %}

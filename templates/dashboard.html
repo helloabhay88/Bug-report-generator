@@ -50,7 +50,12 @@
                             </p>
                         </div>
                         <div class="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                            Severity: <span class="ml-1 font-semibold text-gray-700">{{ report.severity }}</span>
+                            Severity: 
+                            {% if report.severity in ['None', 'N/A'] %}
+                                <span class="ml-1 px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-800">Clean / None</span>
+                            {% else %}
+                                <span class="ml-1 font-semibold text-gray-700">{{ report.severity }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

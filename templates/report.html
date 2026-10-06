@@ -37,12 +37,19 @@
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6 bg-gray-50">
                 <dt class="text-sm font-medium text-gray-500">Severity / Priority</dt>
                 <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex space-x-4">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-red-100 text-red-800">
-                        Severity: {{ report.severity }}
-                    </span>
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-orange-100 text-orange-800">
-                        Priority: {{ report.priority }}
-                    </span>
+                    {% if report.severity in ['None', 'N/A'] or report.priority in ['None', 'N/A'] %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                            <svg class="w-3.5 h-3.5 mr-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Clean Code (No Bugs Detected)
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-red-100 text-red-800">
+                            Severity: {{ report.severity }}
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm font-medium bg-orange-100 text-orange-800">
+                            Priority: {{ report.priority }}
+                        </span>
+                    {% endif %}
                 </dd>
             </div>
 
@@ -65,17 +72,52 @@
                     <dd class="text-sm text-gray-900 p-3 bg-green-50 rounded-md border border-green-200 whitespace-pre-wrap">{{ report.expected_result }}</dd>
                 </div>
                 <div>
-                    <dt class="text-sm font-medium text-red-600 mb-2">Actual Result</dt>
-                    <dd class="text-sm text-gray-900 p-3 bg-red-50 rounded-md border border-red-200 whitespace-pre-wrap">{{ report.actual_result }}</dd>
+                    <dt class="text-sm font-medium {% if report.severity in ['None', 'N/A'] %}text-green-600{% else %}text-red-600{% endif %} mb-2">Actual Result</dt>
+                    <dd class="text-sm text-gray-900 p-3 {% if report.severity in ['None', 'N/A'] %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %} rounded-md border whitespace-pre-wrap">{{ report.actual_result }}</dd>
                 </div>
             </div>
 
-            <!-- Code Snippet -->
-            <div class="py-4 sm:py-5 sm:px-6 bg-gray-900">
-                <dt class="text-sm font-medium text-gray-300 mb-2">Code Snippet ({{ report.language | capitalize }})</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0">
-                    <pre><code class="language-{{ report.language }} rounded-md p-4">{{ report.code_snippet }}</code></pre>
-                </dd>
+            <!-- Code Snippets -->
+            <div class="py-5 sm:px-6 bg-gray-900 border-t border-gray-800 space-y-6">
+                {% if report.severity in ['None', 'N/A'] or not report.fixed_code_snippet or report.fixed_code_snippet.strip() == report.code_snippet.strip() %}
+                    <!-- Clean Code View (Single Block) -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <dt class="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 inline text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Submitted Code (Verified Clean & Functional - {{ report.language | capitalize }})
+                            </dt>
+                        </div>
+                        <dd class="mt-1 text-sm text-gray-200">
+                            <pre class="bg-gray-950 p-4 rounded-lg border border-emerald-800/50 text-emerald-300 overflow-x-auto font-mono"><code>{{ report.code_snippet }}</code></pre>
+                        </dd>
+                    </div>
+                {% else %}
+                    <!-- Buggy Code View (Original vs Fixed) -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <dt class="text-sm font-semibold text-red-400 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                Original Problematic Code ({{ report.language | capitalize }})
+                            </dt>
+                        </div>
+                        <dd class="mt-1 text-sm text-gray-200">
+                            <pre class="bg-gray-950 p-4 rounded-lg border border-red-900/40 text-red-100 overflow-x-auto font-mono"><code>{{ report.code_snippet }}</code></pre>
+                        </dd>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <dt class="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Suggested Fixed Code Solution
+                            </dt>
+                        </div>
+                        <dd class="mt-1 text-sm text-gray-200">
+                            <pre class="bg-gray-950 p-4 rounded-lg border border-emerald-800/50 text-emerald-300 overflow-x-auto font-mono"><code>{{ report.fixed_code_snippet }}</code></pre>
+                        </dd>
+                    </div>
+                {% endif %}
             </div>
         </dl>
     </div>
