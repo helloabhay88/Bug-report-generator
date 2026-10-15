@@ -15,16 +15,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Configure Gemini API
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# Configure Gemini API with REST transport to avoid gRPC connection hanging
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), transport='rest')
 
 CANDIDATE_MODELS = [
+    'gemini-flash-lite-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
     'gemini-flash-latest',
     'gemini-3.8-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash',
-    'gemini-2.5-flash',
-    'gemini-pro-latest'
+    'gemini-3.6-flash'
 ]
 
 class BugReport(db.Model):
@@ -58,6 +58,11 @@ with app.app_context():
                 conn.commit()
     except Exception as e:
         print(f"Migration note: {e}")
+
+def to_str(val):
+    if isinstance(val, list):
+        return "\n".join(str(x) for x in val)
+    return str(val) if val is not None else ""
 
 def generate_report_from_code(code, language, notes):
     """
@@ -104,7 +109,8 @@ Return ONLY a valid JSON object with the following keys, and no markdown formatt
     for model_name in CANDIDATE_MODELS:
         try:
             model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
+            # Set a 15-second timeout so requests never hang or buffer indefinitely
+            response = model.generate_content(prompt, request_options={'timeout': 15})
             text_response = response.text.strip()
             if text_response.startswith('```json'):
                 text_response = text_response[7:-3].strip()
@@ -132,16 +138,16 @@ def index():
             generated = generate_report_from_code(code, language, notes)
             
             report = BugReport(
-                title=generated['title'],
-                description=generated['description'],
-                steps_to_reproduce=generated['steps_to_reproduce'],
-                expected_result=generated['expected_result'],
-                actual_result=generated['actual_result'],
-                severity=generated['severity'],
-                priority=generated['priority'],
+                title=to_str(generated.get('title', 'Bug Report')),
+                description=to_str(generated.get('description', '')),
+                steps_to_reproduce=to_str(generated.get('steps_to_reproduce', '')),
+                expected_result=to_str(generated.get('expected_result', '')),
+                actual_result=to_str(generated.get('actual_result', '')),
+                severity=to_str(generated.get('severity', 'Medium')),
+                priority=to_str(generated.get('priority', 'Medium')),
                 language=language,
                 code_snippet=code,
-                fixed_code_snippet=generated.get('fixed_code', ''),
+                fixed_code_snippet=to_str(generated.get('fixed_code', '')),
                 notes=notes
             )
             
