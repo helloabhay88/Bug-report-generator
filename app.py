@@ -19,12 +19,12 @@ db = SQLAlchemy(app)
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), transport='rest')
 
 CANDIDATE_MODELS = [
-    'gemini-flash-lite-latest',
-    'gemini-3.1-flash-lite',
-    'gemini-3.5-flash-lite',
     'gemini-flash-latest',
     'gemini-3.8-flash',
-    'gemini-3.6-flash'
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-flash-lite-latest',
+    'gemini-3.1-flash-lite'
 ]
 
 class BugReport(db.Model):
@@ -80,23 +80,38 @@ A user has submitted the following {language} code snippet:
 Additional notes or error output provided by the user:
 "{notes}"
 
-Analyze the code and the notes.
-1. If the code CONTAINS BUGS or syntax/logic errors:
-   - Provide a detailed report.
-   - Set "severity" and "priority" to "Low", "Medium", "High", or "Critical".
-   - Provide the corrected working code snippet in "fixed_code".
+TASK:
+Determine if the code contains an ACTUAL, GENUINE bug (such as a syntax error, unhandled runtime crash on standard inputs, infinite loop, or broken logic).
 
-2. If the code IS CLEAN, CORRECT, and HAS NO BUGS or errors:
-   - Clearly state that the code is clean and functional in "title" and "description".
-   - Set "steps_to_reproduce" to "N/A - Code is clean and functional."
-   - Set "actual_result" to "Code executed successfully with no errors."
-   - Set "severity" to "None"
-   - Set "priority" to "None"
-   - Set "fixed_code" to "" (empty string, as no fix is required).
+CRITICAL EVALUATION RULES:
+1. STRICT ONE-SHOT PROCEDURE: The fix in "fixed_code" MUST be fully resolved, clean, and production-ready in ONE SHOT. It must never be a lazy, partial patch or band-aid that leaves other obvious flaws behind.
+2. PRAGMATIC ASSESSMENT: Do NOT invent hypothetical edge cases, demand unnecessary defensive programming (e.g., redundant isinstance type checks), or treat missing docstrings, styling preferences, or unrequired validations as bugs.
+3. VERIFY REPORTED NOTES: If the user provided error notes, verify whether the current code ACTUALLY produces that error. If the code already avoids, fixes, or handles that error, ignore the outdated note.
+4. CLEAN CODE THRESHOLD: If the code is functionally correct, accomplishes its intended purpose, and executes without crashing on standard valid inputs, you MUST classify it as CLEAN CODE (Clean Code = No Bugs Detected). Do NOT suggest cosmetic changes or minor edge-case refactoring if the code already works.
+
+1. If the code IS CLEAN, FUNCTIONAL, and HAS NO REAL BUGS:
+   - "title": "No Bugs Detected: Code is Functional"
+   - "description": "The provided code is syntactically valid, logically sound, and functional without errors."
+   - "steps_to_reproduce": "N/A - Code is clean and functional."
+   - "expected_result": "Code executes successfully."
+   - "actual_result": "Code executed as expected with no errors."
+   - "severity": "None"
+   - "priority": "None"
+   - "fixed_code": "" (MUST be empty string, as no fix is required)
+
+2. If the code CONTAINS A GENUINE BUG or fatal runtime/syntax error:
+   - "title": Concise bug summary focusing only on the primary bug.
+   - "description": Clear explanation of the actual bug.
+   - "steps_to_reproduce": Execution path or trigger condition.
+   - "expected_result": What the code should accomplish.
+   - "actual_result": The error output or failure mode.
+   - "severity": "Low", "Medium", "High", or "Critical".
+   - "priority": "Low", "Medium", "High", or "Critical".
+   - "fixed_code": The FINAL, self-contained, fully working code snippet that executes flawlessly in one shot.
 
 Return ONLY a valid JSON object with the following keys, and no markdown formatting or extra text outside the JSON:
-- "title": A concise summary (e.g. "No Bugs Detected: Code is Functional" if clean).
-- "description": Clear explanation of the code or description of the bug.
+- "title": A concise summary.
+- "description": Clear explanation.
 - "steps_to_reproduce": Execution path/trigger or "N/A - Code is clean".
 - "expected_result": What the code accomplishes.
 - "actual_result": The error output or "Code executed as expected".
@@ -109,8 +124,13 @@ Return ONLY a valid JSON object with the following keys, and no markdown formatt
     for model_name in CANDIDATE_MODELS:
         try:
             model = genai.GenerativeModel(model_name)
-            # Set a 15-second timeout so requests never hang or buffer indefinitely
-            response = model.generate_content(prompt, request_options={'timeout': 15})
+            # Set a 60-second timeout to allow Gemini enough time to generate full code fixes and structured JSON
+            # Set temperature=0.1 for objective, consistent analysis rather than creative nitpicking
+            response = model.generate_content(
+                prompt,
+                generation_config={'temperature': 0.1},
+                request_options={'timeout': 60}
+            )
             text_response = response.text.strip()
             if text_response.startswith('```json'):
                 text_response = text_response[7:-3].strip()
